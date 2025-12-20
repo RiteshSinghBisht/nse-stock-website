@@ -1,0 +1,11 @@
+streamlit
+pandas
+requests
+nsepython
+yfinance
+plotly
+numpy
+matplotlib
+openpyxl
+pytz
+watchdog
