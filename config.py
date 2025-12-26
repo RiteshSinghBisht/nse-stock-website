@@ -26,7 +26,7 @@ TRADING_HOURS = {
 
 # --- AI AGENT CONFIG ---
 # Replace with your actual n8n Webhook URL
-N8N_WEBHOOK_URL = "https://n8n.ritesh-ai-automation.in/webhook-test/562c7120-c504-4664-9b0a-190154334bb4"
+N8N_WEBHOOK_URL = "https://n8n.ritesh-ai-automation.in/webhook/562c7120-c504-4664-9b0a-190154334bb4"
 
 # Retry settings
 MAX_RETRIES = 3
