@@ -51,18 +51,24 @@ def get_ai_response(prompt):
         response = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=30)
         
         if response.status_code == 200:
+            # Check for empty response
+            if not response.text or not response.text.strip():
+                return "⚠️ Error: The AI agent returned an empty response. Please check your n8n workflow to ensure the 'Respond to Webhook' node is sending data."
+
             try:
                 data = response.json()
                 if isinstance(data, dict):
-                    return data.get('output', data.get('text', data.get('response', str(data))))
+                    # Look for common output keys
+                    return data.get('output', data.get('text', data.get('response', data.get('message', str(data)))))
                 elif isinstance(data, list) and len(data) > 0:
                     first_item = data[0]
                     if isinstance(first_item, dict):
-                        return first_item.get('output', str(first_item))
+                        return first_item.get('output', first_item.get('text', str(first_item)))
                     return str(first_item)
                 else:
                     return response.text
             except ValueError:
+                # If not JSON, return raw text (we already checked it's not empty)
                 return response.text
         else:
             return f"❌ Agent Error: {response.status_code} - {response.text}"
@@ -205,6 +211,120 @@ def render_ai_assistant():
                 setInterval(inject, 500);
             }
             initVoiceInput();
+
+            // =====================================================
+            // EDGE RESIZE LOGIC (Excel-Style)
+            // =====================================================
+            function initEdgeResize() {
+                const doc = window.parent.document;
+                
+                // Helper to create resize handle
+                const injectHandle = (popover) => {
+                    if (popover.dataset.hasResizeHandle) return;
+                    popover.dataset.hasResizeHandle = 'true';
+                    
+                    // Ensure positioning context & overflow
+                    popover.style.setProperty('position', 'relative', 'important');
+                    popover.style.setProperty('overflow', 'visible', 'important');
+                    
+                    const handle = doc.createElement('div');
+                    Object.assign(handle.style, {
+                        position: 'absolute',
+                        top: '0', bottom: '0', right: '-5px', // Extend slightly outside
+                        width: '15px', // Wider hit area
+                        cursor: 'ew-resize',
+                        zIndex: '2147483647', // Max z-index
+                        background: 'transparent', // Change to 'rgba(255,0,0,0.1)' to debug
+                        touchAction: 'none'
+                    });
+                    
+                    popover.appendChild(handle);
+                    
+                    let isDragging = false;
+                    let currentX;
+                    let startX;
+                    let startWidth;
+                    let animationFrameId;
+                    
+                    const updateWidth = () => {
+                        if (!isDragging) return;
+                        
+                        const dx = currentX - startX;
+                        let newWidth = startWidth + dx;
+                        
+                        if (newWidth < 300) newWidth = 300;
+                        if (newWidth > (window.innerWidth - 20)) newWidth = window.innerWidth - 20;
+                        
+                        // DEEP FIX: Resize the parent container (the Dialog itself)
+                        // This handles the case where the parent is fixed/constrained
+                        const container = popover.closest('[role="dialog"]') || popover.parentElement;
+                        
+                        if (container) {
+                            container.style.setProperty('width', `${newWidth}px`, 'important');
+                            container.style.setProperty('min-width', `${newWidth}px`, 'important');
+                            container.style.setProperty('max-width', '95vw', 'important');
+                        }
+                        
+                        // Also force body to follow
+                        popover.style.setProperty('width', '100%', 'important');
+                        popover.style.setProperty('min-width', '100%', 'important');
+                        
+                        animationFrameId = requestAnimationFrame(updateWidth);
+                    };
+                    
+                    const onMouseDown = (e) => {
+                        isDragging = true;
+                        startX = e.clientX;
+                        currentX = e.clientX;
+                        startWidth = popover.getBoundingClientRect().width;
+                        
+                        const overlay = doc.createElement('div');
+                        overlay.id = 'resize-overlay-capture';
+                        Object.assign(overlay.style, {
+                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                            zIndex: '2147483647', cursor: 'ew-resize'
+                        });
+                        doc.body.appendChild(overlay);
+                        
+                        // Start Loop
+                        animationFrameId = requestAnimationFrame(updateWidth);
+                        
+                        e.preventDefault();
+                        e.stopPropagation();
+                    };
+                    
+                    const onMouseMove = (e) => {
+                        if (!isDragging) return;
+                        e.preventDefault();
+                        currentX = e.clientX; 
+                        // Note: actual update happens in RAF loop
+                    };
+                    
+                    const onMouseUp = () => {
+                        if (isDragging) {
+                            isDragging = false;
+                            cancelAnimationFrame(animationFrameId);
+                            const overlay = doc.getElementById('resize-overlay-capture');
+                            if (overlay) overlay.remove();
+                        }
+                    };
+                    
+                    handle.addEventListener('mousedown', onMouseDown);
+                    doc.addEventListener('mousemove', onMouseMove);
+                    doc.addEventListener('mouseup', onMouseUp);
+                };
+
+                // Observer to catch the popover when it opens
+                const observer = new MutationObserver(() => {
+                    const popover = doc.querySelector('div[data-testid="stPopoverBody"]');
+                    if (popover) {
+                        injectHandle(popover);
+                    }
+                });
+                
+                observer.observe(doc.body, { childList: true, subtree: true });
+            }
+            initEdgeResize();
         </script>
     """, height=0, width=0)
 
@@ -221,12 +341,13 @@ def render_ai_assistant():
             width: 450px !important;
             max-width: 95vw !important;
             max-height: 80vh !important;
+            /* Revert resize */
             border-radius: 20px !important;
             background: #FFFFFF !important;
             box-shadow: 0 12px 40px rgba(0,0,0,0.2) !important;
             border: 1px solid #E8E8E8 !important;
             padding: 0 !important;
-            overflow: hidden !important;
+            overflow: hidden !important; 
             display: flex !important;
             flex-direction: column !important;
         }
